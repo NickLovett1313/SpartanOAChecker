@@ -36,7 +36,7 @@ if st.button("🔍 Check for Discrepancies"):
         oa_text = extract_text_from_pdf(oa_file)
         po_text = extract_text_from_pdf(spartan_po_file)
 
-        # === YOUR FINAL PROMPT ===
+        # === FINAL SMART PROMPT ===
         prompt = f"""
 You are a strict but smart purchase order checker.
 
@@ -47,29 +47,31 @@ You are a strict but smart purchase order checker.
 👉 Check line-by-line for:
 • Model Number
 • Expected Date (from OA) vs Requested Date (from PO)
-• Unit Price and Total Price and order total price at the bottom
-• Tags or Tag Numbers (treat minor formatting differences like dashes or spaces as the same — only flag real tag mismatches)
+• Unit Price and Total Price, and order total price at the bottom
+• Tags or Tag Numbers (treat minor formatting differences like dashes or spaces as the same — only flag real mismatches)
 • Calibration data if available (only flag if different)
 • The main PO Number at the top of each document (must match)
-• Make sure all of the lines matchup, line 10 on the OA should have the same info as line 10 on the PO 
+• Make sure all lines match up — e.g., Line 10 in OA should have the same info as Line 10 in PO
 
 ⚖️ When comparing:
 • Focus only on lines that contain a model number.
-• Ignore serial codes, “Sold To” sections, addresses, generic headers, payment terms, tax details except for tariffs or duties.
+• Ignore serial codes, “Sold To” sections, addresses, generic headers, payment terms, tax details except for tariffs/duties.
 • For ship dates:
   o Only show a table if there are any date differences.
   o List only the lines that have different OA Expected Date and PO Requested Date.
   o If all dates match, do not output a table.
   o Before the table, write: “The expected ship date in the OA and requested ship date in the PO are different as shown below.”
+
 • For the final order total:
   o Compare the total prices in the OA and PO.
   o If the total prices match, do not mention them.
-  o If they are different, check if there is a “Tariff” or “Duty” listed in either document that explains the difference. It will usually show up in the OA with its own line if it is not in the PO, and explain that the difference in the order total is because of this tariff charge.
-  o If the difference is due to a tariff or duty, say: “Order total difference is due to tariff charge.”
-  o If no tariff or duty is found, list both totals and say: “Order totals differ with no clear tariff explanation.”
+  o If they are different, check if there is a “Tariff” or “Duty” line that explains the difference.
+  o If the difference is due to a tariff/duty, say: “Order total difference is due to tariff charge.”
+  o If no tariff/duty is found, list both totals and say: “Order totals differ with no clear tariff explanation.”
 
 🚫 Do NOT mention tag formatting differences.
 🚫 Do NOT output “Calibration matches” — only flag if there is a real mismatch.
+🚫 Do NOT list lines that fully match — skip them.
 
 📋 Format your response exactly like this:
 
@@ -78,16 +80,20 @@ The expected ship date in the OA and requested ship date in the PO are different
 
 1. Expected vs Requested Dates Table
 
-OA Lines    OA Expected Date    PO Lines    PO Requested Date
-Lines X-X    <OA Date>    Lines X-X    <PO Date>
+| OA Lines | OA Expected Date | PO Lines | PO Requested Date |
+|----------|------------------|----------|--------------------|
+| Lines X-X | <OA Date> | Lines X-X | <PO Date> |
 (Only include lines where dates differ.)
 
 2. Other Discrepancies
-• Model Number mismatch on Line XX if any.
-• Tags differ for Model XYZ if truly different.
-• PO Numbers do not match.
+• Only list lines where there is a real mismatch.
+• For each mismatch, show exactly what is different. Use **bold** to highlight the specific part that is different so it is clear at a glance.
+  Example: Line 90: IC**0063**-NC (OA) vs IC**0100**-NC (PO)
+• Always show the exact line numbers for context.
+• PO Number mismatch if any.
+• Tags mismatch if truly different.
 • Calibration data mismatch if any.
-• Final order total difference if any (with tariff check).
+• Final order total difference with tariff explanation or not.
 
 ✅ End with: “No other discrepancies found.” or “No discrepancies found.” if clean.
 
