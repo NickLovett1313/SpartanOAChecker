@@ -32,11 +32,11 @@ if st.button("🔍 Check for Discrepancies"):
     else:
         st.info("🔄 Extracting and analyzing...")
 
-        # Extract all text with no filter
+        # Extract all text (no filter)
         oa_text = extract_text_from_pdf(oa_file)
         po_text = extract_text_from_pdf(spartan_po_file)
 
-        # Build strict prompt
+        # Build your final structured prompt
         prompt = f"""
 You are a strict but smart purchase order checker.
 
@@ -53,11 +53,12 @@ You are a strict but smart purchase order checker.
 - The main PO Number at the top of each document (must match)
 
 ⚖️ When comparing lines:
-- Focus on lines that contain a model number.
-- Ignore serial codes, “Sold To” sections, headers, legal terms, or shipping details.
+- Focus only on lines that contain a model number.
+- Ignore serial codes, “Sold To” sections, addresses, legal sections, shipping details.
 - For dates: build a table showing lines in OA with their expected date and lines in PO with their requested date.
-- If the OA or PO shows multiple tags for one line or one tag for multiple lines, just check that the total quantity and total price are consistent.
-- Ignore duplicate tags if they do not change the quantity.
+- If the OA or PO shows multiple tags for one line or one tag for multiple lines, check that the total quantity and total price are consistent. Ignore duplicate tags that do not change the quantity.
+
+🚫 Do NOT mention or flag payment terms, tax details, or general legal text.
 
 📋 Format your response exactly like this:
 
@@ -67,50 +68,15 @@ You are a strict but smart purchase order checker.
 |----------|------------------|----------|--------------------|
 | Lines 10-160 | Jul 28, 2025 | Lines 10-160 | Jun 25, 2025 |
 | Lines 170-360 | Aug 08, 2025 | Lines 170-360 | Jun 25, 2025 |
-...(use as many rows as needed)
+| ... | ... | ... | ... |
 
 2. **Other Discrepancies**
 - Model Number mismatch on Line XX if any.
-- Tags do not match for Model XYZ.
+- Tags inconsistent for Model XYZ.
 - PO Numbers do not match.
-- Any other relevant issues.
+- Any other real issues found.
 
-✅ End with “No other discrepancies found.” if there are no other issues.
-
-Here is the OA:
-{oa_text[:30000]}
-
-Here is the PO:
-{po_text[:30000]}
-"""
-
-You are a strict purchase order checker.
-
-Your job is to compare these two documents:
-1️⃣ The Factory Order Acknowledgement (OA)
-2️⃣ The Spartan Purchase Order (PO)
-
-Check them line-by-line for:
-- ✅ Model Numbers
-- ✅ Tags or Tag Numbers
-- ✅ Quantities
-- ✅ Unit Prices
-- ✅ Dates
-- ✅ Calibration data
-
-Your goal is to:
-- Find ANY mismatches, even small differences.
-- Ignore unimportant differences like addresses or generic T&Cs.
-- Always be precise: If something does NOT match, clearly say what line, what field, and what the values are.
-
-Respond with a clear summary like this:
----
-Line 10: Model Number mismatch — OA=702DX32D1I6WA3WN1B4 vs PO=702DX32D1I6WA3WN1B5
-Line 20: Tag SR1-01-XT-9025B missing in OA
-Line 30: Prices match.
-Line 40: Quantities match.
-No other discrepancies found.
----
+✅ End with: “No other discrepancies found.” if there are no other issues.
 
 Here is the OA:
 {oa_text[:30000]}
@@ -119,7 +85,7 @@ Here is the PO:
 {po_text[:30000]}
 """
 
-        # Call Groq using the new Llama 3.3 70B model
+        # Call Groq using the current Llama model
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
