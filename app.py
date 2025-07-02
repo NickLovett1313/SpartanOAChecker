@@ -3,18 +3,16 @@ import os
 import fitz  # PyMuPDF
 from groq import Groq
 
-# Get your Groq API key from Streamlit secrets
+# Connect to Groq
 client = Groq(api_key=os.environ["GROQ_API_KEY"])
 
-st.set_page_config(page_title="Spartan Order Checker", page_icon="🧾")
 st.title("🧾 Spartan Order Checker")
-st.markdown("Upload your documents below and let AI check for discrepancies.")
 
-# Uploads
-oa_file = st.file_uploader("📎 Upload Factory Order Acknowledgement", type=["pdf"])
-spartan_po_file = st.file_uploader("📎 Upload Spartan Purchase Order", type=["pdf"])
+# Upload UI
+oa_file = st.file_uploader("Upload Factory Order Acknowledgement", type=["pdf"])
+spartan_po_file = st.file_uploader("Upload Spartan Purchase Order", type=["pdf"])
 
-# Extract PDF text
+# Add your helper functions here:
 def extract_text_from_pdf(file):
     if file is None:
         return ""
@@ -24,36 +22,59 @@ def extract_text_from_pdf(file):
             text += page.get_text()
     return text
 
+def extract_relevant_lines(text):
+    lines = text.split('\n')
+    relevant = []
+    for line in lines:
+        if any(keyword in line for keyword in ["Model", "Tag", "Serial", "Qty", "Unit Price", "Price", "Calibration", "Tag#", "DATE", "Ship date", "PO#", "Item Number"]):
+            relevant.append(line.strip())
+    return "\n".join(relevant)
+
+# BUTTON LOGIC
 if st.button("🔍 Check for Discrepancies"):
     if not oa_file or not spartan_po_file:
-        st.error("Please upload at least the OA and Spartan PO.")
+        st.error("Please upload both files.")
     else:
         st.info("🔄 Extracting and analyzing...")
 
-        # Extract text
-        oa_text = extract_text_from_pdf(oa_file)
-        po_text = extract_text_from_pdf(spartan_po_file)
+        raw_oa_text = extract_text_from_pdf(oa_file)
+        raw_po_text = extract_text_from_pdf(spartan_po_file)
 
-        # Build prompt for Mixtral
+        oa_text = extract_relevant_lines(raw_oa_text)
+        po_text = extract_relevant_lines(raw_po_text)
+
         prompt = f"""
-You are a strict order checker.
-Compare these two documents for any discrepancies in:
-- Model Numbers
-- Tags
-- Dates
-- Prices
-- Calibration data
+You are a strict purchase order checker.
 
-Be line-by-line. Flag ANY mismatch. Be explicit.
+Your job is to compare these two documents:
+1️⃣ The Factory Order Acknowledgement (OA)
+2️⃣ The Spartan Purchase Order (PO)
 
-OA:
-{oa_text[:12000]}
+Check them line-by-line for:
+- ✅ Model Numbers
+- ✅ Tags or Tag Numbers
+- ✅ Quantities
+- ✅ Unit Prices
+- ✅ Dates
+- ✅ Calibration data
 
-PO:
-{po_text[:12000]}
+Your goal is to:
+- Find ANY mismatches, even small differences.
+- Ignore unimportant differences like addresses or generic T&Cs.
+- Always be precise: If something does NOT match, clearly say what line, what field, and what the values are.
+
+Respond with a clear summary like this:
+---
+Line 10: Model Number mismatch — OA=... vs PO=...
+...
+
+Here is the OA:
+{oa_text[:15000]}
+
+Here is the PO:
+{po_text[:15000]}
 """
 
-        # Call Groq Mixtral
         response = client.chat.completions.create(
             model="mixtral-8x7b-32768",
             messages=[
