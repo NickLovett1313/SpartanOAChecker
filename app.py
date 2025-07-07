@@ -15,7 +15,7 @@ st.markdown("Upload your documents below and let AI check for discrepancies.")
 oa_file = st.file_uploader("📎 Upload Factory Order Acknowledgement", type=["pdf"])
 spartan_po_file = st.file_uploader("📎 Upload Spartan Purchase Order", type=["pdf"])
 
-# Function to extract all text from a PDF
+# Extract all text from PDF
 def extract_text_from_pdf(file):
     if file is None:
         return ""
@@ -25,6 +25,20 @@ def extract_text_from_pdf(file):
             text += page.get_text()
     return text
 
+# Filter: keep only relevant lines to stay under token limits
+def extract_relevant_lines(text):
+    lines = text.split('\n')
+    relevant = []
+    for line in lines:
+        if any(keyword.lower() in line.lower() for keyword in [
+            "cust line", "order line", "description",
+            "qty", "quantity", "unit price", "total amount",
+            "expected ship date", "requested ship date",
+            "tag", "configuration", "surcharge", "tariff", "total usd", "po#"
+        ]):
+            relevant.append(line.strip())
+    return "\n".join(relevant)
+
 # Button: run check
 if st.button("🔍 Check for Discrepancies"):
     if not oa_file or not spartan_po_file:
@@ -32,9 +46,12 @@ if st.button("🔍 Check for Discrepancies"):
     else:
         st.info("🔄 Extracting and analyzing...")
 
-        # Extract all text (no filter)
-        oa_text = extract_text_from_pdf(oa_file)
-        po_text = extract_text_from_pdf(spartan_po_file)
+        # Extract + filter text
+        raw_oa_text = extract_text_from_pdf(oa_file)
+        raw_po_text = extract_text_from_pdf(spartan_po_file)
+
+        oa_text = extract_relevant_lines(raw_oa_text)
+        po_text = extract_relevant_lines(raw_po_text)
 
         # === FINAL SMART PROMPT ===
         prompt = f"""
@@ -50,12 +67,12 @@ You are a strict but smart purchase order checker.
 • Unit Price and Total Price, and order total price at the bottom
 • Tags or Tag Numbers (treat minor formatting differences like dashes or spaces as the same — only flag real mismatches)
 • Calibration data if available (only flag if different)
-• The main PO Number at the top of each document (must match)
+• The main PO Number at the top of each document (must match, ignore prefix numbers like '830355663/' if the rest matches)
 • Make sure all lines match up — e.g., Line 10 in OA should have the same info as Line 10 in PO
 
 ⚖️ When comparing:
 • Focus only on lines that contain a model number.
-• Ignore serial codes, “Sold To” sections, addresses, generic headers, payment terms, tax details except for tariffs/duties.
+• Ignore serial codes, “Sold To” sections, addresses, generic headers, payment terms, and tax details except for tariffs/duties.
 • For ship dates:
   o Only show a table if there are any date differences.
   o List only the lines that have different OA Expected Date and PO Requested Date.
@@ -98,13 +115,13 @@ The expected ship date in the OA and requested ship date in the PO are different
 ✅ End with: “No other discrepancies found.” or “No discrepancies found.” if clean.
 
 Here is the OA:
-{oa_text[:30000]}
+{oa_text[:8000]}
 
 Here is the PO:
-{po_text[:30000]}
+{po_text[:8000]}
 """
 
-        # Call Groq using the current Llama model
+        # Call Groq using the Llama model
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
