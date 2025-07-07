@@ -53,66 +53,60 @@ if st.button("🔍 Check for Discrepancies"):
         oa_text = extract_relevant_lines(raw_oa_text)
         po_text = extract_relevant_lines(raw_po_text)
 
-        # === FINAL SMART PROMPT ===
+        # === FINAL STRICT FLAGGER PROMPT ===
         prompt = f"""
-You are a strict but smart purchase order checker.
+You are a strict FLAGGER, not a problem solver.  
+Your only job is to compare two documents:  
+1️⃣ The Factory Order Acknowledgement (OA)  
+2️⃣ The Spartan Purchase Order (PO)  
 
-✅ Your job is to compare these two documents:
-1️⃣ The Factory Order Acknowledgement (OA)
-2️⃣ The Spartan Purchase Order (PO)
+👉 Go line-by-line, in order.  
+👉 For each line, compare:  
+- Model Number  
+- Expected Date (OA) vs Requested Date (PO)  
+- Unit Price and Total Price  
+- Quantity  
+- Tags or Tag Numbers (treat minor formatting differences like dashes or spaces as the same — only flag true mismatches)
+- Calibration data if available (only flag if different)
 
-👉 Check line-by-line for:
-• Model Number
-• Expected Date (from OA) vs Requested Date (from PO)
-• Unit Price and Total Price, and order total price at the bottom
-• Tags or Tag Numbers (treat minor formatting differences like dashes or spaces as the same — only flag real mismatches)
-• Calibration data if available (only flag if different)
-• The main PO Number at the top of each document (must match, ignore prefix numbers like '830355663/' if the rest matches)
-• Make sure all lines match up — e.g., Line 10 in OA should have the same info as Line 10 in PO
+✅ If a line has a tag in the OA but not in the PO (or vice versa), flag it.  
+✅ Flag even tiny price differences down to $0.01.  
+✅ If the PO Number at the top is different, flag it.  
+✅ At the end, compare the final order total price — if it’s different, flag it (do not explain why).
 
-⚖️ When comparing:
-• Focus only on lines that contain a model number.
-• Ignore serial codes, “Sold To” sections, addresses, generic headers, payment terms, and tax details except for tariffs/duties.
-• For ship dates:
-  o Only show a table if there are any date differences.
-  o List only the lines that have different OA Expected Date and PO Requested Date.
-  o If all dates match, do not output a table.
-  o Before the table, write: “The expected ship date in the OA and requested ship date in the PO are different as shown below.”
+⚖️ How to output:
 
-• For the final order total:
-  o Compare the total prices in the OA and PO.
-  o If the total prices match, do not mention them.
-  o If they are different, check if there is a “Tariff” or “Duty” line that explains the difference.
-  o If the difference is due to a tariff/duty, say: “Order total difference is due to tariff charge.”
-  o If no tariff/duty is found, list both totals and say: “Order totals differ with no clear tariff explanation.”
+1️⃣ Expected vs Requested Dates Table:
+- Only show this table if you find any lines with date differences.
+- If all dates match, do not show the table.
+- Before the table, write: “The expected ship date in the OA and requested ship date in the PO are different as shown below.”
 
-🚫 Do NOT mention tag formatting differences.
-🚫 Do NOT output “Calibration matches” — only flag if there is a real mismatch.
-🚫 Do NOT list lines that fully match — skip them.
-
-📋 Format your response exactly like this:
-
-If any date differences exist:
-The expected ship date in the OA and requested ship date in the PO are different as shown below.
-
-1. Expected vs Requested Dates Table
-
+Format:
 | OA Lines | OA Expected Date | PO Lines | PO Requested Date |
 |----------|------------------|----------|--------------------|
 | Lines X-X | <OA Date> | Lines X-X | <PO Date> |
 (Only include lines where dates differ.)
 
-2. Other Discrepancies
-• Only list lines where there is a real mismatch.
-• For each mismatch, show exactly what is different. Use **bold** to highlight the specific part that is different so it is clear at a glance.
-  Example: Line 90: IC**0063**-NC (OA) vs IC**0100**-NC (PO)
-• Always show the exact line numbers for context.
-• PO Number mismatch if any.
-• Tags mismatch if truly different.
-• Calibration data mismatch if any.
-• Final order total difference with tariff explanation or not.
+2️⃣ Numbered List of Discrepancies:
+- After the table (or first if no table), output a numbered list in order of the lines.
+- Each discrepancy must include:
+   • The line number in OA and PO  
+   • The field that does not match (Model #, Price, Quantity, Tags, Calibration)  
+   • Show the OA value vs PO value side-by-side  
+   • Highlight the actual part that is different in **bold**
 
-✅ End with: “No other discrepancies found.” or “No discrepancies found.” if clean.
+✅ Example:  
+1. Line 330: Unit Price mismatch — OA=$**3499.61** vs PO=$**3499.60**  
+2. Line 420: Tag present in PO but missing in OA  
+3. Line 530: Quantity mismatch — OA=**2** vs PO=**5**  
+4. Order total mismatch — OA=$XXX.XX vs PO=$XXX.XX
+
+✅ Do NOT output “matches” or mention lines that match — just skip them.  
+✅ Do NOT suggest reasons or solutions — just flag the facts.
+
+✅ End your output with:  
+“No other discrepancies found.” if any were flagged, or  
+“No discrepancies found.” if the docs match perfectly.
 
 Here is the OA:
 {oa_text[:8000]}
