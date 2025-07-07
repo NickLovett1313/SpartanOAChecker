@@ -53,30 +53,16 @@ if st.button("🔍 Check for Discrepancies"):
         oa_text = extract_relevant_lines(raw_oa_text)
         po_text = extract_relevant_lines(raw_po_text)
 
-        # === FINAL STRICT FLAGGER PROMPT ===
+        # === STRICT FLAGGER PROMPT — YOUR UPDATED VERSION ===
         prompt = f"""
-You are a strict FLAGGER, not a problem solver.  
+Your job is to compare two documents the OA and PO and go line by line and look for differences (discrepancies) between them and flag these issues.
+
 Your only job is to compare two documents:  
 1️⃣ The Factory Order Acknowledgement (OA)  
 2️⃣ The Spartan Purchase Order (PO)  
 
-👉 Go line-by-line, in order.  
-👉 For each line, compare:  
-- Model Number  
-- Expected Date (OA) vs Requested Date (PO)  
-- Unit Price and Total Price  
-- Quantity  
-- Tags or Tag Numbers (treat minor formatting differences like dashes or spaces as the same — only flag true mismatches)
-- Calibration data if available (only flag if different)
-
-✅ If a line has a tag in the OA but not in the PO (or vice versa), flag it.  
-✅ Flag even tiny price differences down to $0.01.  
-✅ If the PO Number at the top is different, flag it.  
-✅ At the end, compare the final order total price — if it’s different, flag it (do not explain why).
-
-⚖️ How to output:
-
-1️⃣ Expected vs Requested Dates Table:
+Step 1:
+Start by going through all lines and looking at the Expected Date (OA) vs Requested Date (PO). Your first job will be to show all the lines where the dates are different.
 - Only show this table if you find any lines with date differences.
 - If all dates match, do not show the table.
 - Before the table, write: “The expected ship date in the OA and requested ship date in the PO are different as shown below.”
@@ -87,25 +73,48 @@ Format:
 | Lines X-X | <OA Date> | Lines X-X | <PO Date> |
 (Only include lines where dates differ.)
 
+List this table all as 1. in a numbered list.
+
+Step 2:
+👉 Go line-by-line, in order.
+👉 For each line, compare:
+- Model Number
+- Unit Price and Total Price even as small as $0.01
+- Quantity
+- Tags or Tag Numbers (treat minor formatting differences like dashes or spaces as the same — only flag true mismatches)
+- Calibration data if available (only flag if different)
+- If the OA has a tariff charge but the PO does not, flag that.
+
+Ignore all other information in the line, such as the carrier, shipping terms, etc.
+
+Also flag any other unusual issues such as:
+✅ If a line has a tag in the OA but not in the PO (or vice versa), flag it.
+✅ Flag even tiny price differences down to $0.01.
+✅ If the PO Number at the top is different, flag it.
+✅ At the end, compare the final order total price — if it’s different, flag it (do not explain why).
+
+⚖️ How to output:
+After the table, list any discrepancies that you find.
+
 2️⃣ Numbered List of Discrepancies:
 - After the table (or first if no table), output a numbered list in order of the lines.
 - Each discrepancy must include:
-   • The line number in OA and PO  
-   • The field that does not match (Model #, Price, Quantity, Tags, Calibration)  
-   • Show the OA value vs PO value side-by-side  
+   • The line number in OA and PO
+   • The field that does not match (Model #, Price, Quantity, Tags, Calibration)
+   • Show the OA value vs PO value side-by-side
    • Highlight the actual part that is different in **bold**
 
 ✅ Example:  
-1. Line 330: Unit Price mismatch — OA=$**3499.61** vs PO=$**3499.60**  
-2. Line 420: Tag present in PO but missing in OA  
-3. Line 530: Quantity mismatch — OA=**2** vs PO=**5**  
+1. Line 330: Unit Price mismatch — OA=$**3499.61** vs PO=$**3499.60**
+2. Line 420: Tag present in PO but missing in OA
+3. Line 530: Quantity mismatch — OA=**2** vs PO=**5**
 4. Order total mismatch — OA=$XXX.XX vs PO=$XXX.XX
 
-✅ Do NOT output “matches” or mention lines that match — just skip them.  
+✅ Do NOT output “matches” or mention lines that match — just skip them.
 ✅ Do NOT suggest reasons or solutions — just flag the facts.
 
-✅ End your output with:  
-“No other discrepancies found.” if any were flagged, or  
+✅ End your output with:
+“No other discrepancies found.” if any were flagged, or
 “No discrepancies found.” if the docs match perfectly.
 
 Here is the OA:
